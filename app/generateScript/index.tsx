@@ -1,4 +1,4 @@
-import UserProfile from "@/constants/UserProfile";
+import { UserProfile } from "@/constants/UserProfile";
 import { useFonts } from "expo-font";
 import { useLocalSearchParams } from "expo-router";
 import { SafeAreaView, Text } from "react-native";

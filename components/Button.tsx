@@ -7,12 +7,13 @@ type MyButtonProps =
 {
   onPress : (event : GestureResponderEvent) => void;
   children : ReactNode,
-  style? : ViewStyle
+  style? : ViewStyle,
+  available? : boolean
 };
 
-export function CustomButton({onPress , children, style} : MyButtonProps) {
+export function CustomButton({onPress , children, style, available} : MyButtonProps) {
   return <>
-    <TouchableOpacity onPress={onPress} style={[Theme.genericShadow]}>
+    <TouchableOpacity disabled={!available} onPress={onPress} style={[Theme.genericShadow]}>
       <View style={[Theme.button, style]}>
         {children}
       </View>

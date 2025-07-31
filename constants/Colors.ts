@@ -3,6 +3,7 @@
  * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
  */
 
+import * as PV from "@react-navigation/native";
 import { StyleSheet } from "react-native";
 
 const tintColorLight = '#0a7ea4';
@@ -29,12 +30,17 @@ const tintColorDark = '#fff';
 
 const Colors = {
   surface : '#212121', // D11900
+  surfaceShade : '#333333ff', // D11900
   primary : '#FFFCFB',
-  secondary : '#D11900',
-  pg : '#113F67'
+  secondary : '#B01700',
+  pg : '#113F67',
+  tokens : '#ffd700',
+  primaryShade : '#909090ff',
+  tokensDarker : '#CCAD00',
+  inputSurface : '#0D2D4B',
 };
 
-const fontFamily = 'Roboto';
+const fontFamily = 'SpaceMono-Bold';
 
 
 const Theme = StyleSheet.create({
@@ -101,5 +107,39 @@ const Theme = StyleSheet.create({
   }
 })
 
-export { Colors, Theme };
+const themeProvider : PV.Theme = {
+  fonts : {
+    medium : {
+      fontFamily : 'SpaceMono-Bold',
+      fontWeight: '800'
+    },
+
+    bold : {
+      fontFamily : 'SpaceMono-Bold',
+      fontWeight: '800'
+    },
+
+    regular : {
+      fontFamily : 'SpaceMono-Bold',
+      fontWeight: '800'
+    },
+
+    heavy : {
+      fontFamily : 'SpaceMono-Bold',
+      fontWeight: '800'
+    }
+  },
+
+  dark : true,
+  colors : {
+    background : Colors.surface,
+    text : Colors.primary,
+    card : Colors.secondary,
+    border : Colors.secondary,
+    notification : Colors.primary,
+    primary : Colors.primary
+  }
+}
+
+export { Colors, Theme, themeProvider };
 

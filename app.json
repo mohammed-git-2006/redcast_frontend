@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "RedCast",
-    "slug": "RedCast",
+    "slug": "redcast",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -38,6 +38,19 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6d1362ad-2915-4e1f-a7cc-77749425d9c5"
+      }
+    },
+    "owner": "mohammedrawashdeh",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/6d1362ad-2915-4e1f-a7cc-77749425d9c5"
     }
   }
 }

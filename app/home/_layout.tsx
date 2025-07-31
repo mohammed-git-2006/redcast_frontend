@@ -1,12 +1,11 @@
-import { Theme } from '@/constants/Colors'
-import { Slot } from 'expo-router'
-import { View } from 'react-native'
+import { themeProvider } from '@/constants/Colors'
+import { ThemeProvider } from '@react-navigation/native'
+import { Stack } from 'expo-router'
 
 export default function LoginRoot() {
-
   return <>
-    <View style={[Theme.body]}>
-      <Slot/>
-    </View>
+    <ThemeProvider value={themeProvider}>
+      <Stack screenOptions={{headerShown : false}} />
+    </ThemeProvider>
   </>
 }
