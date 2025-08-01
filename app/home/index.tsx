@@ -1,30 +1,30 @@
 import NoInternetView from "@/components/NoInternet";
+import VideoPreview from "@/components/VideoPreview";
 import { Colors, Theme } from "@/constants/Colors";
+import { db } from "@/constants/firebase";
 import { loadUserFromServer, SERVER_URL, UserProfile } from "@/constants/UserProfile";
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Audio, Video } from 'expo-av';
+import { Audio } from 'expo-av';
 import { useFonts } from "expo-font";
 import { router } from "expo-router";
+import { onValue, ref } from "firebase/database";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Dimensions, Easing, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Modal from 'react-native-modal';
 import PagerView from "react-native-pager-view";
 import getScriptFromUrl from "./reddit";
 
-import { db } from "@/constants/firebase";
-import { onValue, ref } from "firebase/database";
-
 const styles = StyleSheet.create({
   headerText : {
     color : Colors.primary, 
-    fontFamily:'SpaceMono-Bold',
+    fontFamily:'montserrat',
     fontSize : 15
   },
 
   pagerViewElement : {
     height : 100,
-    backgroundColor : Colors.pg,
+    backgroundColor : Colors.primaryShade,
     borderRadius:15,
     borderColor:'black',
     margin:10,
@@ -33,19 +33,19 @@ const styles = StyleSheet.create({
   },
 
   pvTitle : {
-    fontFamily : 'SpaceMono-Bold',
-    fontWeight:700,
+    fontFamily : 'montserrat',
+    fontWeight:800,
     textAlign:'left',
     fontSize:20,
-    color: Colors.primary
+    color: 'black'
   },
 
   pvSub : {
     fontFamily : 'SpaceMono',
-    fontWeight:400,
+    fontWeight:800,
     textAlign:'right',
     fontSize: 14,
-    color: Colors.primary
+    color: 'black'
   },
 
   input : {
@@ -56,8 +56,9 @@ const styles = StyleSheet.create({
     height:200,
     borderColor:Colors.primary,
     borderWidth:1,
-    fontFamily:'SpaceMono-Bold',
-    color:Colors.primary,
+    fontFamily:'montserrat',
+    fontWeight:'600',
+    color:'black',
     fontSize:14,
     shadowColor:'#686868ff',
     shadowRadius:5,
@@ -99,9 +100,9 @@ interface GenerationResponse
 
 export default function Home() {
   const [fontsLoaded] = useFonts({
-    "Roboto" : require("../../assets/fonts/Roboto.ttf"),
-    'SpaceMono' : require("../../assets/fonts/SpaceMono-Regular.ttf"),
-    'SpaceMono-Bold' : require("../../assets/fonts/SpaceMono-Bold.ttf"),
+    // "Roboto" : require("../../assets/fonts/Roboto.ttf"),
+    // 'SpaceMono' : require("../../assets/fonts/SpaceMono-Regular.ttf"),
+    'montserrat' : require("../../assets/fonts/montserrat.ttf"),
   });
 
   /**
@@ -277,6 +278,19 @@ export default function Home() {
     pagerRef.current?.setPage(currentPage.current)
   };
 
+  
+
+  useEffect(() => {
+    Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      staysActiveInBackground: false,
+      // interruptionModeIOS: Audio.,
+      playsInSilentModeIOS: true,
+      // interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
+      shouldDuckAndroid: true,
+    });
+  }, []);
+
   useEffect(() => {
     intervalRef.current = setInterval(nextPage, 5000)
     return () => clearInterval(intervalRef.current!);
@@ -320,19 +334,6 @@ export default function Home() {
     setRedditUrl(newVal)
   }
 
-  const getResultUrl = async () : Promise<string|null> => {
-    try {
-      const fR = await fetch(`${SERVER_URL}/order/${currentOrderId}/result`, {
-        headers : {
-          'Authorization' : `Bearer ${jwtToken}`,
-        }
-      });
-
-      return "hello"
-    } catch (error) {
-      return null;
-    }
-  }
 
   const updateTokens = () => {
     fetch(`${SERVER_URL}/user/tokens`, {
@@ -401,16 +402,8 @@ export default function Home() {
             break;
 
           case "DONE":
-            getResultUrl().then(r => {
-              if (r == null) {
-                alert('Unknown error happend');
-                setGenerating(false)
-                return;
-              }
-
-              setGenerating(false)
-              setPreviewVideoUrl(`${SERVER_URL}/order/${currentOrderId}/result`)
-            });
+            setGenerating(false)
+            setPreviewVideoUrl(`${SERVER_URL}/order/${jsonResponse.orderId}/result`)
             break;
 
           case "ERR" :
@@ -508,7 +501,7 @@ export default function Home() {
     <View style={[Theme.body]}>
       <View style={{backgroundColor : Colors.secondary, padding : 15, paddingTop:20}}>
         <SafeAreaView style={{flexDirection:'row', gap:5, justifyContent:'space-between', alignItems:'center'}}>
-          <Text style={[styles.headerText, {fontSize:15, marginTop:5}]}>👋 {userProfile.name}</Text>
+          <Text style={[styles.headerText, {fontSize:15, marginTop:5, fontWeight:'800'}]}>👋 {userProfile.name}</Text>
           <TouchableOpacity onPress={() => viewTokens()}>
             <View style={{flexDirection:'row', gap:5, justifyContent:'center', alignItems:'center',
               padding:5,borderColor:Colors.primary, borderWidth:2, borderRadius:15
@@ -516,7 +509,7 @@ export default function Home() {
               <Image source={require('../../assets/images/token.png')} 
                 style={{width:15, height:15, tintColor:'white', resizeMode:'contain'}}/>
               <Text style={[styles.headerText, {fontWeight:'800', color:Colors.tokens}]}>{userProfile.tokens?.toFixed(1)}</Text>
-              <Text style={{fontFamily:'SpaceMono-Bold', color:Colors.primary}}>Tokens</Text>
+              <Text style={{fontFamily:'montserrat', color:Colors.primary, fontWeight:'600'}}>Tokens</Text>
             </View>
           </TouchableOpacity>
         </SafeAreaView>
@@ -531,35 +524,42 @@ export default function Home() {
           })}
         </PagerView>
         <View style={{flexDirection:'row', marginHorizontal:15, marginBottom:10, justifyContent:'space-between'}}>
-          <Text style={{color: Colors.primary, fontFamily:'SpaceMono-Bold'}}>
+          <Text style={{color: Colors.primary, fontFamily:'montserrat'}}>
             <Text style={{color: Colors.tokens}}>{((userProfile.tokens??0) * (tokensPer100 ?? 0)).toFixed(1)}</Text> characters left
           </Text>
           <TouchableOpacity style={{flexDirection:'row', gap:3, alignItems:'center'}} onPress={() => setUserScript('')}>
-            <Text style={{fontFamily:'SpaceMono-Bold', color:Colors.primaryShade}}>Clear</Text>
-            <Ionicons name="clipboard" style={{color:Colors.primaryShade, transform : [{translateY:1}]}} />
+            <Text style={{fontFamily:'montserrat', color:Colors.primary}}>Clear</Text>
+            <Ionicons name="clipboard" style={{color:Colors.primary, transform : [{translateY:1}]}} />
           </TouchableOpacity>
         </View>
-        <TextInput maxLength={maxCharacters} style={[styles.input]} cursorColor={Colors.primary}  
-          multiline={true} placeholder="Paste your script here ..." selectionColor={Colors.primary}
+        <TextInput maxLength={maxCharacters} style={[styles.input]} cursorColor={Colors.surface}  
+          multiline={true} placeholder="Paste your script here ..." selectionColor={Colors.surface}
           onChangeText={(newTex) => handleInputChange(newTex)} value={userScript} ref={scriptInputRef}
           />
+        <Text>{previewVideUrl}</Text>
         <View style={{flexDirection:'row', justifyContent:'space-between'}}>
-          <Text style={{color: calculatedLength >= maxCharacters ? 'red' : 'white', fontFamily:'SpaceMono-Bold', marginHorizontal:15}}>
+          <Text style={{color: calculatedLength >= maxCharacters ? 'red' : 'white', fontFamily:'montserrat', marginHorizontal:15, fontWeight:'600'}}>
             {calculatedLength}/{maxCharacters}
           </Text>
-          <Text style={{color: (calculatedLength / (tokensPer100??1)) > (userProfile.tokens ?? 0) ? 'red' : Colors.tokens, fontFamily:'SpaceMono-Bold', marginHorizontal:15}}>
+          <Text style={{color: (calculatedLength / (tokensPer100??1)) > (userProfile.tokens ?? 0) ? 'red' : Colors.tokens, fontFamily:'montserrat', marginHorizontal:15, fontWeight:'600'}}>
             {calculatedLength / (tokensPer100??1)} Tokens
           </Text>
         </View>
 
         {previewVideUrl != null ? <>
         <View style={{justifyContent:'center', alignItems:'center', marginVertical:15}}>
-          <Video source={{uri : previewVideUrl!, headers : {
+          {/* <Video source={{uri : previewVideUrl!, headers : {
             'Authorization' : `Bearer ${jwtToken}`
-          }}} useNativeControls style={{width:width*.8, height:width*1.42, borderRadius:20}}  isMuted={false}
+          }}} useNativeControls style={{width:width*.8, height:width*1.42, borderRadius:20}} volume={1.0}  isMuted={false}
           onLoad={() => alert('Loaded')} onError={(e) => alert('Failed to load media '.concat(e))} PosterComponent={() => {
             return <ActivityIndicator />
-          }} />
+          }} /> */}
+          <VideoPreview 
+            url={previewVideUrl}
+            orderId={currentOrderId??''}
+            width={Dimensions.get("window").width}
+            token={jwtToken??''}
+          />
         </View>
         </> : <>
         </>}
@@ -570,7 +570,7 @@ export default function Home() {
             <View style={{backgroundColor:Colors.secondary, borderRadius:15, padding:15, alignItems:'center', justifyContent:'space-between',
               marginHorizontal:15, marginVertical:5, flexDirection:'row'}}>
               <View style={{flexDirection:'row', gap:5}}>
-                <Text style={{fontFamily:'SpaceMono-Bold', color:Colors.primary}}>
+                <Text style={{fontFamily:'montserrat', color:Colors.primary, fontWeight:'600'}}>
                   Use reddit URL
                 </Text>
                 <Ionicons name="logo-reddit" size={18} color={Colors.primary} style={{
@@ -590,7 +590,7 @@ export default function Home() {
             <View style={{backgroundColor:Colors.secondary, borderRadius:15, padding:15, alignItems:'center', justifyContent:'space-between',
               marginHorizontal:15, marginVertical:5, flexDirection:'row'}}>
               <View style={{flexDirection:'row', gap:5}}>
-                <Text style={{fontFamily:'SpaceMono-Bold', color:Colors.primary}}>
+                <Text style={{fontFamily:'montserrat', color:Colors.primary, fontWeight:'600'}}>
                   Previous generations
                 </Text>
                 <Ionicons name="videocam-outline" size={18} color={Colors.primary} style={{
@@ -606,11 +606,11 @@ export default function Home() {
           <TouchableOpacity onPress={() => setVoiceIdModelVisibility(true)}>
             <View style={{backgroundColor:Colors.secondary, borderRadius:15, padding:5, alignItems:'center', justifyContent:'space-between',
               marginHorizontal:15, marginVertical:5, flexDirection:'row', paddingHorizontal:15}}>
-              <Text style={{fontFamily:'SpaceMono-Bold', color:Colors.primary}}>Choose AI Voice 🎤 </Text>
+              <Text style={{fontFamily:'montserrat', color:Colors.primary, fontWeight:'600'}}>Choose AI Voice 🎤 </Text>
               <View style={{flex:1, borderRadius:15, backgroundColor:Colors.primary, paddingVertical:5, marginVertical:5, height:'80%',
                 alignItems:'center', marginHorizontal:7
               }}>
-                <Text style={{fontFamily:'SpaceMono-Bold'}}>{choosenVoice?.name}</Text>
+                <Text style={{fontFamily:'montserrat', fontWeight:'600'}}>{choosenVoice?.name}</Text>
               </View>
               <Ionicons name="chevron-forward" style={{color : Colors.primary}} size={15}/>
             </View>
@@ -622,7 +622,7 @@ export default function Home() {
           <View style={{backgroundColor:Colors.surface, borderRadius:15, padding:15, alignItems:'center', justifyContent:'center',
             marginHorizontal:15, marginVertical:5, flexDirection:'row', paddingHorizontal:15, gap:15, borderColor:Colors.secondary,
             borderWidth:2}}>
-              <Text style={{fontFamily:'SpaceMono-Bold', color:Colors.secondary, fontSize:18}}>Generating ....</Text>
+              <Text style={{fontFamily:'montserrat', color:Colors.secondary, fontSize:18, fontWeight:'600'}}>Generating ....</Text>
               <ActivityIndicator color={Colors.secondary}/>
           </View>
         </View>
@@ -632,7 +632,7 @@ export default function Home() {
             <View style={{
               backgroundColor:Colors.secondary, borderRadius:15, padding:15, alignItems:'center', justifyContent:'center',
               marginHorizontal:15, marginVertical:5, flexDirection:'row', paddingHorizontal:15, gap:15}}>
-              <Text style={{fontFamily:'SpaceMono-Bold', color:Colors.primary, fontSize:18}}>Generate</Text>
+              <Text style={{fontFamily:'montserrat', color:Colors.primary, fontSize:18, fontWeight:'600'}}>Generate</Text>
               <Ionicons name="star" size={18} color={Colors.primary} />
               {/* <Ionicons name="chevron-forward" style={{color : Colors.primary}} size={15}/> */}
             </View>
@@ -643,7 +643,7 @@ export default function Home() {
           <TouchableOpacity onPress={() => { router.replace('/login') }}>
             <View style={{backgroundColor:Colors.secondary, borderRadius:15, padding:15, alignItems:'center', justifyContent:'center',
               marginHorizontal:15, marginVertical:5, flexDirection:'row', paddingHorizontal:15, gap:15}}>
-              <Text style={{fontFamily:'SpaceMono-Bold', color:Colors.primary, fontSize:18}}>Generate</Text>
+              <Text style={{fontFamily:'montserrat', color:Colors.primary, fontSize:18, fontWeight:'600'}}>Generate</Text>
               <Ionicons name="star" size={18} color={Colors.primary} />
               {/* <Ionicons name="chevron-forward" style={{color : Colors.primary}} size={15}/> */}
             </View>
@@ -659,12 +659,12 @@ export default function Home() {
         <View style={{backgroundColor:Colors.surface, borderRadius:15, padding:15, margin:0, height:'auto'}}>
           <ScrollView style={{}}>
             <View style={{flex:1, marginTop:5, gap:10}}>
-              <Text style={{fontFamily:'SpaceMono-Bold', fontSize:15, color:Colors.primary}}>
+              <Text style={{fontFamily:'montserrat', fontSize:15, color:Colors.primary}}>
                 Paste Reddit URL here ...
               </Text>  
               <TextInput
                 style={{borderColor:Colors.primary, borderWidth:1, borderRadius:10, padding:10, marginRight:5, 
-                  fontFamily:'SpaceMono-Bold', color:Colors.primary}}
+                  fontFamily:'montserrat', color:Colors.primary}}
                 ref={redditInputRef}
                 keyboardType="url"
                 onChangeText={onRedditInputChanged}
@@ -676,14 +676,14 @@ export default function Home() {
                   { gettingUrlContent ? 
                   <>
                   <View style={{justifyContent:'center', alignItems:'center', flexDirection:'row', gap:5}}>
-                    <Text style={{fontFamily:'SpaceMono-Bold', color:Colors.primary, textAlign:'center'}}>
+                    <Text style={{fontFamily:'montserrat', color:Colors.primary, textAlign:'center'}}>
                       Getting the script ...
                     </Text>
                     <ActivityIndicator />
                   </View>
                   </>
                   : 
-                  <Text style={{fontFamily:'SpaceMono-Bold', color:Colors.primary, textAlign:'center'}}>
+                  <Text style={{fontFamily:'montserrat', color:Colors.primary, textAlign:'center'}}>
                     Search for script
                   </Text> }
                 </View>
@@ -707,7 +707,7 @@ export default function Home() {
             <View style={{flex:1, marginTop:25}}>
               {voices?.map(voicePair => {
                 return  <View style={{flexDirection:'row', margin:3, padding:7, justifyContent:'flex-start'}} key={voicePair.id}>
-                  <Text style={{fontFamily:'SpaceMono-Bold', color: Colors.primary, fontSize:20, width:'30%'}}>{voicePair.name}</Text>
+                  <Text style={{fontFamily:'montserrat', color: Colors.primary, fontSize:20, width:'30%'}}>{voicePair.name}</Text>
                   <TouchableOpacity onPress={() => { playVoiceSample(voicePair.name) }} style={{marginRight:0}}>
                     <Ionicons name="play" color={Colors.primary} size={23}/>
                   </TouchableOpacity>
@@ -733,7 +733,7 @@ export default function Home() {
        */}
 
       <Modal isVisible={tokensModalVisibile} style={{flex:1}}>
-        <View style={{backgroundColor : Colors.pg, borderRadius:15, padding:15, margin:0, height:'50%'}}>
+        <View style={{backgroundColor : Colors.surface, borderRadius:15, padding:15, margin:0, height:'50%'}}>
           <View style={{position:'absolute', transform:[{translateX:-8}, {translateY:8}], alignSelf:'flex-end'}}>
             <TouchableOpacity onPress={() => setTokensModalVisibility(false)}>
               <Ionicons name="close-circle" size={30} color={Colors.primary} />
@@ -741,12 +741,12 @@ export default function Home() {
           </View>
           <View style={{flex:1, justifyContent:'space-around', alignItems:'center'}}>
             <View style={{alignItems:'center', flexDirection:'row', gap:10}}>
-              <Text style={{fontFamily:'SpaceMono-Bold', fontSize:20, color: Colors.primary, textAlign:'center'}}>
+              <Text style={{fontFamily:'montserrat', fontSize:20, color: Colors.primary, textAlign:'center', fontWeight:'800'}}>
                 You have <Text style={{color:Colors.tokens}}>{userProfile.tokens?.toFixed(0)}</Text> Tokens Left!
               </Text>
             </View>
             <View style={{flexWrap:'wrap', flexDirection:'row', gap:5}}>
-              <Text style={{fontFamily:'SpaceMono-Bold', fontSize:15, color: Colors.primaryShade, textAlign:'center'}}>
+              <Text style={{fontFamily:'montserrat', fontSize:15, color: Colors.primaryShade, textAlign:'center', fontWeight:'600'}}>
                 You can either buy tokens, or watch ad to get <Text style={{color: Colors.tokens}}>{tokensPerAd}</Text> tokens
               </Text>
             </View>
@@ -754,14 +754,14 @@ export default function Home() {
           <Animated.View style={{transform : [{scale:modalTokensRef}]}}>
             <TouchableOpacity onPress={() => handleBuyTokens()}>
               <View style={[Theme.button]}>
-                <Text style={{fontFamily:'SpaceMono-Bold', color:Colors.surface, fontSize:15}}>Buy Tokens now!</Text>
+                <Text style={{fontFamily:'montserrat', color:Colors.surface, fontSize:15, fontWeight:'800'}}>Buy Tokens now!</Text>
               </View>
             </TouchableOpacity>
           </Animated.View>
           <Animated.View style={{transform : [{scale:modalTokensRef}]}}>
             <TouchableOpacity onPress={() => handleWatchAd()}>
               <View style={[Theme.button, {marginTop:0}]}>
-                <Text style={{fontFamily:'SpaceMono-Bold', color:Colors.surface, fontSize:15}}>Watch Ad to get <Text style={{color: Colors.secondary}}>{tokensPerAd}</Text> tokens!</Text>
+                <Text style={{fontFamily:'montserrat', color:Colors.surface, fontSize:15, fontWeight:'800'}}>Watch Ad to get <Text style={{color: Colors.secondary}}>{tokensPerAd}</Text> tokens!</Text>
               </View>
             </TouchableOpacity>
           </Animated.View>

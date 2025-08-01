@@ -96,7 +96,7 @@ export default function LoginPage()
   const [request, response, asyncPrompt] = Google.useAuthRequest({
     clientId:'1076352697541-ue3ongqtggen8khddndsg3fic7vev9u9.apps.googleusercontent.com',
     redirectUri: AUTH_REDIRECT_URL,
-    scopes:['profile', 'email']
+    scopes:[]
   });
   
   useEffect(() => {
@@ -111,6 +111,10 @@ export default function LoginPage()
       alert("Login process failed, please try again later ".concat(response?.type))
     }
   }, [response])
+
+  // const handleLogin = async () => {
+  //   asyncPrompt();
+  // }
 
   const handleLogin = async () => {
     setLogging(true)
@@ -171,6 +175,7 @@ export default function LoginPage()
                   fontSize : 17, marginHorizontal : 25, textAlign : 'center', width:'80%', flex:1}}>
                   {item[1]}
                 </Text>
+                <View style={{flex:1}}/>
               </View>
             })}
           </PagerView>

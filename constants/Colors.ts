@@ -28,17 +28,30 @@ const tintColorDark = '#fff';
 //   },
 // };
 
-const Colors = {
+const Colors_ = {
   surface : '#212121', // D11900
+  // surface : 'black',
   surfaceShade : '#333333ff', // D11900
   primary : '#FFFCFB',
   secondary : '#B01700',
-  pg : '#113F67',
+  // pg : '#113F67',
+  pg : 'white',
   tokens : '#ffd700',
   primaryShade : '#909090ff',
   tokensDarker : '#CCAD00',
-  inputSurface : '#0D2D4B',
+  // inputSurface : '#0D2D4B',
+  inputSurface : 'white',
 };
+
+const Colors = {
+  surface : '#0C1844',
+  primary : '#F3E2D4',
+  secondary : '#C80036',
+  inputSurface : '#F3E2D4',
+  tokens : '#ffd700',
+  primaryShade : '#909090ff',
+  tokensDarker : '#CCAD00',
+}
 
 const fontFamily = 'SpaceMono-Bold';
 
