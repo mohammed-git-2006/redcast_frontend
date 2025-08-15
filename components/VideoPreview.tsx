@@ -1,26 +1,37 @@
+import { Colors } from "@/constants/Colors";
+import { SERVER_URL } from "@/constants/UserProfile";
 import { Ionicons } from "@expo/vector-icons";
 import { ResizeMode, Video } from "expo-av";
 import * as FileSystem from 'expo-file-system';
+import { router } from "expo-router";
 import { shareAsync } from 'expo-sharing';
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Animated, Dimensions, Image, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import LoadingComponent from "./LoadingComponent";
 
 interface Props
 {
-  url : string,
   token : string,
-  width : number,
   orderId : string
 }
 
-export default function VideoPreview({orderId, url, token, width} : Props) {
+const vidRatio = 1920 / 1080
+
+export default function VideoPreview({orderId,  token} : Props) {
   const videoRef = useRef<Video>(null)
-  const vidWidth = useRef(width).current;
-  const vidHeight = useRef(vidWidth * 1.42).current
+  // const vidHeight = useRef(vidWidth * vidRatio).current
   const [iconName, setIconName] = useState<"play"|"pause">("play")
   const [downloading, setDownloading] = useState(false);
-  
+  const url = useRef(`${SERVER_URL}/order/${orderId}/result`).current;
+  const insets = useSafeAreaInsets();
+  const { width, height } = Dimensions.get('window')
+  const [vidLoaded, setVideoLoaded] = useState(false);
+  const [loadingErr, setLoadingErr] = useState(false);
+  const profilePicRef = useRef(new Animated.Value(0)).current;
+
   const handleDownload = async () => {
+    if (!vidLoaded) return;
     try {
       setDownloading(true);
       const localUri = FileSystem.documentDirectory + `RedCast ${orderId.substring(0, 5)}.mp4`;
@@ -40,12 +51,22 @@ export default function VideoPreview({orderId, url, token, width} : Props) {
   }
 
   useEffect(() => {
-    videoRef.current?.setOnPlaybackStatusUpdate((status) => {
-      console.log(status.isLoaded + ', ' + status.androidImplementation)
-    })
+    Animated.loop(
+      Animated.spring(
+      profilePicRef,
+      {
+        toValue: -30,
+        friction: 2,
+        tension: 120,
+        useNativeDriver: true,
+      }
+      )
+    ).start();
   }, [])
 
   const handlePlayPause = () => {
+    if (!vidLoaded) return;
+
     if (iconName == 'pause') {
       videoRef.current?.pauseAsync();
       setIconName('play')
@@ -56,12 +77,15 @@ export default function VideoPreview({orderId, url, token, width} : Props) {
   }
 
   const handleRepeat = () => {
+    if (!vidLoaded) return;
     videoRef.current?.pauseAsync()
     videoRef.current?.replayAsync();
     setIconName('pause')
   }
 
-  return <View style={{alignItems:'center', marginVertical:15}}>
+  const videoComponentHeight = useRef(height-insets.top-insets.bottom-50).current;
+
+  return <View style={{alignItems:'center', marginVertical:0}}>
     <Video
       source={{
         uri: url,
@@ -72,24 +96,42 @@ export default function VideoPreview({orderId, url, token, width} : Props) {
       volume={1.0}
       resizeMode={ResizeMode.CONTAIN}
       onLoadStart={() => alert('Started loading vid ...')}
-      style={{ height: vidHeight, width: vidWidth }}
-      onError={(e) => console.log(`Video ${orderId} error`, e)}
-      onLoad={() => console.log(`Video ${orderId} loaded`)}
-    />
-    <View style={{position:'absolute', transform:[{translateY:vidHeight - 50}]}}>
-      <View style={{height:50, backgroundColor:'black', opacity:0.5, width:vidWidth * .8, padding : 0, alignItems:'center', justifyContent:'center', flexDirection:'row', gap:10}}>
+      style={{ width: width, height:videoComponentHeight, marginTop:insets.top}}
+      onError ={() => {setLoadingErr(true); setVideoLoaded(true)}}
+      onLoad  ={() => {setLoadingErr(false); setVideoLoaded(true)}}
+    /> 
+    
+      <View style={{position:'absolute', width: width, height:videoComponentHeight, marginTop:insets.top, alignItems:'center', justifyContent:'center'}}>
+        {loadingErr ? <> 
+          <Text style={{fontFamily:'montserrat', fontWeight:'800', color:Colors.primary}}>
+            Failed to load media
+          </Text>
+        </> : vidLoaded ? <View></View> : <>
+          <Animated.View style={{transform: [ {translateY:profilePicRef} ]}}>
+            <Image source={require('@/assets/images/profile.png')} style={{width:150, height:150, marginBottom:15}}/>
+          </Animated.View>
+          <LoadingComponent />
+        </>}
+      </View>
+    
+      <View style={{backgroundColor:'black', opacity:0.5, width:width, padding : 0, 
+        paddingBottom:insets.bottom, alignItems:'center', justifyContent:'center', flexDirection:'row', gap:10}}>
+
         <TouchableOpacity style={{padding:10}} onPress={() => { handleRepeat() }}>
-          <Ionicons name={'repeat-outline'} color={'white'} size={25}/>
+          <Ionicons name={'repeat-outline'} color={'white'} size={35}/>
         </TouchableOpacity>
         <TouchableOpacity style={{padding:10}} onPress={() => {handlePlayPause()}}>
-          <Ionicons name={iconName} color={'white'} size={25}/>
+          <Ionicons name={iconName} color={'white'} size={35}/>
         </TouchableOpacity>
         {downloading ? <>
           <ActivityIndicator />
         </>: <TouchableOpacity style={{padding:10}} onPress={() => {handleDownload()}}>
-          <Ionicons name={'download-outline'} color={'white'} size={25} />
+          <Ionicons name={'download-outline'} color={'white'} size={35} />
         </TouchableOpacity>}
+        <TouchableOpacity style={{padding:10}} onPress={() => { router.back() }}>
+          <Ionicons name={'close'} color={'white'} size={35}/>
+        </TouchableOpacity>
       </View>
-    </View>
+    
   </View>
 }

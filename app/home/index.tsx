@@ -1,19 +1,24 @@
+import { BuyTokensComponent } from "@/components/BuyTokens";
+import GenVideoComponent from "@/components/GeneratingVideoComponent";
+import LoadingComponent from "@/components/LoadingComponent";
 import NoInternetView from "@/components/NoInternet";
-import VideoPreview from "@/components/VideoPreview";
 import { Colors, Theme } from "@/constants/Colors";
 import { db } from "@/constants/firebase";
 import { loadUserFromServer, SERVER_URL, UserProfile } from "@/constants/UserProfile";
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useIsFocused } from "@react-navigation/native";
 import { Audio } from 'expo-av';
 import { useFonts } from "expo-font";
 import { router } from "expo-router";
 import { onValue, ref } from "firebase/database";
+import LottieView from "lottie-react-native";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Dimensions, Easing, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Animated, Dimensions, Easing, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Modal from 'react-native-modal';
 import PagerView from "react-native-pager-view";
 import getScriptFromUrl from "./reddit";
+
 
 const styles = StyleSheet.create({
   headerText : {
@@ -24,7 +29,7 @@ const styles = StyleSheet.create({
 
   pagerViewElement : {
     height : 100,
-    backgroundColor : Colors.primaryShade,
+    backgroundColor : Colors.primary,
     borderRadius:15,
     borderColor:'black',
     margin:10,
@@ -41,32 +46,12 @@ const styles = StyleSheet.create({
   },
 
   pvSub : {
-    fontFamily : 'SpaceMono',
-    fontWeight:800,
+    fontFamily : 'montserrat',
+    fontWeight:600,
     textAlign:'right',
     fontSize: 14,
     color: 'black'
   },
-
-  input : {
-    backgroundColor:Colors.inputSurface,
-    borderRadius:20,
-    padding:10,
-    marginHorizontal:10,
-    height:200,
-    borderColor:Colors.primary,
-    borderWidth:1,
-    fontFamily:'montserrat',
-    fontWeight:'600',
-    color:'black',
-    fontSize:14,
-    shadowColor:'#686868ff',
-    shadowRadius:5,
-    shadowOpacity:1.0,
-    shadowOffset:{width:0, height:0},
-    marginBottom:5,
-    elevation:5,
-  }
 })
 
 
@@ -77,18 +62,25 @@ interface VoicePair
 }
 
 
+
 interface ServerValues
 {
   voices : VoicePair[],
+  bgMusic : string[],
+  vidClips : {name : string, id : string}[],
   tokens_per_ad : number,
   tokens_per_100 : number,
-  max_chars : number
+  max_chars : number,
+  tokens_per_sg : number
 }
 
 interface GenerationRequest
 {
   script : string,
+  title : string,
   voiceId : string,
+  bgMusic : string,
+  bgClip : string,
 }
 
 interface GenerationResponse
@@ -98,20 +90,78 @@ interface GenerationResponse
   orderId : string,
 }
 
+
+interface ButtonProps
+{
+  icon? : typeof Ionicons,
+  text : string,
+  chevron? : any,
+  onPress : () => void,
+  animationRef? : Animated.Value
+}
+
+export const HomeButton = ({icon, text, chevron, onPress, animationRef} : ButtonProps) => {
+  const inner = <TouchableOpacity onPress={() => onPress()}>
+    <View style={{flexDirection:'row', backgroundColor:Colors.onSurface, marginHorizontal:15, padding : 10,
+        marginVertical:7, borderRadius:7, alignItems:'center', gap:10}}>
+      { icon != null ? <>
+        <Ionicons name={icon} size={25} color={Colors.secondary} />
+      </> : <></> }
+      <Text style={{fontFamily:'montserrat', fontWeight:'700', color:Colors.primary}}>{text}</Text>
+      {!chevron ? <>
+        <View style={{flex:1}}/>
+        <Ionicons name="chevron-forward" color={Colors.primary} size={14} />
+      </> : <></>}
+    </View>
+  </TouchableOpacity>;
+
+  return animationRef == null ? inner 
+  : <Animated.View style={{transform : [{scale : animationRef}]}}>
+    {inner}
+  </Animated.View>
+}
+
+interface ChoicesOptionsProps
+{
+  text: string,
+  currentOption : string,
+  onPress : () => void,
+  animationRef? : Animated.Value,
+  icon? : typeof Ionicons
+}
+
+const ChoicesButton = ({text, currentOption, onPress, animationRef, icon} : ChoicesOptionsProps) => {
+  return <TouchableOpacity onPress={() => onPress()}>
+    <View style={{flexDirection:'row', backgroundColor:Colors.onSurface, marginHorizontal:15, padding : 10,
+        marginVertical:7, borderRadius:7, alignItems:'center', gap:10}}>
+      { icon != null ? <>
+        <Ionicons name={icon} size={25} color={Colors.secondary} />
+      </> : <></> }
+      <Text style={{fontFamily:'montserrat', fontWeight:'700', color:Colors.primary}}>{text}</Text>
+      <View style={{flex:1}}/>
+      <Text style={{fontFamily:'montserrat', fontWeight:'700', textDecorationLine: 'underline', textDecorationStyle: 'solid', textDecorationColor: Colors.primary,
+          color:Colors.primary}}>
+        {currentOption}
+      </Text>
+      <Ionicons name="chevron-forward" color={Colors.primary} size={14} />
+    </View>
+  </TouchableOpacity>;
+}
+
 export default function Home() {
   const [fontsLoaded] = useFonts({
-    // "Roboto" : require("../../assets/fonts/Roboto.ttf"),
-    // 'SpaceMono' : require("../../assets/fonts/SpaceMono-Regular.ttf"),
     'montserrat' : require("../../assets/fonts/montserrat.ttf"),
   });
 
   /**
-   * Define states and references
+   * Define states and references // REF-AREA
    */
   const [loading, setLoading] = useState(true);
   const [connectionErr, setConnectionErr] = useState(false);
   const [tokensModalVisibile, setTokensModalVisibility] = useState(false);
   const [voiceIdModelVisibility, setVoiceIdModelVisibility] = useState(false); 
+  const [bgMusicModalVisibility, setBgMusicModalVisibility] = useState(false); 
+  const [vidClipsModalVisibility, setVidClipsModalVisibility] = useState(false); 
   const [redditVisibility, setRedditVisibility] = useState(false); 
   const [userProfile, setUserProfile] = useState<UserProfile>({});
   const [maxCharacters, setMaxCharacters] = useState(1500);
@@ -120,7 +170,11 @@ export default function Home() {
   const [tokensPerAd, setTokensPerAd] = useState(30);
   const [choosenVoice, setChoosenVoice] = useState<VoicePair|null>(null);
   const [voices, setVoices] = useState<VoicePair[]>();
+  const [serverValues, setServerValues] = useState<ServerValues>()
+  const [bgMusic, setBgMusic] = useState<string>("Hope")
+  const [vidClip, setVidClip] = useState<{name:string, id:string}>({name:"Minecraft 1", id:"mc_1"})
   const [tokensPer100, setTokensPer100] = useState<number|null>()
+  const [tokensPerScriptGen, setTokensPerScriptGen] = useState<number|null>()
   const [redditUrl, setRedditUrl] = useState("")
   const [gettingUrlContent, setGettingUrlContent] = useState(false);
   const [jwtToken, setJwtToken] = useState<string|null>(null)
@@ -130,19 +184,37 @@ export default function Home() {
   const [previewVideUrl, setPreviewVideoUrl] = useState<string|null>(null);
   const currentPage = useRef(0);
   const scriptInputRef = useRef<TextInput>(null)
+  const scriptTitleInputRef = useRef<TextInput>(null)
+  const isFocuse = useIsFocused();
+  const [scriptTitle, setScriptTitle] = useState("");
+
+  useEffect(() => {
+    updateTokensAsync()
+  }, [isFocuse])
   
   /**
    * Define animations references
    */
   const modalTokensRef = useRef(new Animated.Value(0)).current;
-  const chooseVoiceRef = useRef(new Animated.Value(.0)).current;
   const redditButtonRef = useRef(new Animated.Value(.0)).current;
+  const genScriptRef = useRef(new Animated.Value(.0)).current;
   const prevGensRef = useRef(new Animated.Value(.0)).current;
   const generateButtonRef = useRef(new Animated.Value(.0)).current;
 
+  const congratsRef = useRef<LottieView>(null)
+
+
   useEffect(() => {
     Animated.sequence([
+      Animated.delay(500),
       Animated.timing(redditButtonRef, {
+        useNativeDriver : true,
+        toValue : 1.0,
+        duration : 250,
+        easing : Easing.out(Easing.ease),
+      }),
+
+      Animated.timing(genScriptRef, {
         useNativeDriver : true,
         toValue : 1.0,
         duration : 250,
@@ -156,14 +228,6 @@ export default function Home() {
         easing : Easing.out(Easing.ease),
       }),
 
-      Animated.timing(chooseVoiceRef, {
-        useNativeDriver : true,
-        toValue : 1.0,
-        duration : 250,
-        delay : 0,
-        easing : Easing.out(Easing.ease),
-      }),
-
       Animated.timing(generateButtonRef, {
         useNativeDriver : true,
         toValue : 1.0,
@@ -172,6 +236,10 @@ export default function Home() {
         easing : Easing.out(Easing.ease),
       }),
     ]).start();
+
+    AsyncStorage.getItem('user', (e, item) => {
+      console.log(`User : ${item}`)
+    })
   }, [])
 
   useEffect(() => {
@@ -193,11 +261,14 @@ export default function Home() {
     try {
       const fR = await fetch(`${SERVER_URL}/server_values`);
       const parsedResult : ServerValues = await fR.json()
+      setServerValues(parsedResult)
+      setBgMusic(parsedResult.bgMusic[0]!)
       setVoices(parsedResult.voices)
       setChoosenVoice(parsedResult.voices[0])
       setTokensPerAd(parsedResult.tokens_per_ad)
       setMaxCharacters(parsedResult.max_chars)
       setTokensPer100(parsedResult.tokens_per_100)
+      setTokensPerScriptGen(parsedResult.tokens_per_sg)
     } catch (Ex) {
       // alert(`Error : ${Ex}`)
       setConnectionErr(true)
@@ -213,6 +284,7 @@ export default function Home() {
       }
 
       loadUserFromServer(jwtToken).then(luR => {
+        // alert(luR)
         if (luR == 'connerr') {
           setConnectionErr(true)
           setLoading(false);
@@ -251,7 +323,7 @@ export default function Home() {
       setUserScript(userScript.substring(0, maxCharacters))
       setCalculatedLength(maxCharacters)
     } else {
-      setCalculatedLength(userScript.length)
+      setCalculatedLength(userScript.length / 10)
     }
   }, [userScript]) // effect-userScript
 
@@ -270,15 +342,12 @@ export default function Home() {
     },
   ]);
 
-  const charIndex = useRef(0);
   const intervalRef = useRef<number | null>(null);
 
   const nextPage = () => {
     currentPage.current = (currentPage.current + 1) % pagerViewElements.length;
     pagerRef.current?.setPage(currentPage.current)
   };
-
-  
 
   useEffect(() => {
     Audio.setAudioModeAsync({
@@ -305,15 +374,20 @@ export default function Home() {
     setUserScript(newText);
   }
 
-  const handleBuyTokens = () => {
-    setTokensModalVisibility(false);
-  }
-
-  const handleWatchAd = () => {
-    setTokensModalVisibility(false);
-  }
-
   const [audioSample, setAudioSample] = useState<Audio.Sound|null>()
+
+  const playBgMusicSample = async (name:string) => {
+    if (audioSample != null) {
+      audioSample.stopAsync()
+    }
+
+    const {sound} = await Audio.Sound.createAsync(
+      {uri:`${SERVER_URL}/bg-music/${name}/sample`},
+      {shouldPlay:true}
+    )
+
+    setAudioSample(sound)
+  }
 
   const playVoiceSample = async (name:string) => {
     if (audioSample != null) {
@@ -328,12 +402,32 @@ export default function Home() {
     setAudioSample(sound)
   } 
 
+  useEffect(() => {
+    audioSample?.stopAsync()
+  }, [bgMusicModalVisibility, vidClipsModalVisibility])
+
   const redditInputRef = useRef<TextInput>(null);
 
   const onRedditInputChanged = (newVal : string) => {
     setRedditUrl(newVal)
   }
 
+  const updateTokensAsync = async () => {
+    // setUpdatingTokens(true);
+
+    try {
+      const response = await fetch(`${SERVER_URL}/user/tokens`, {
+        headers : {
+          'Authorization' : `Bearer ${jwtToken}`,
+        }
+      })
+
+      const jsonResponse = await response.json();
+      setUserProfile({...userProfile, tokens : jsonResponse.tokens})
+    } catch(err) {
+      setConnectionErr(true);
+    }
+  }
 
   const updateTokens = () => {
     fetch(`${SERVER_URL}/user/tokens`, {
@@ -347,7 +441,6 @@ export default function Home() {
         setUserProfile({ ...userProfile, tokens:newTokens})
       } catch (err) {
         alert(err)
-        // router.replace('/login')
       }
     }).catch(err => {
       setConnectionErr(true);
@@ -362,7 +455,12 @@ export default function Home() {
     }
 
     if (userScript.trim().length == 0) {
-      if (scriptInputRef != null) scriptInputRef.current?.focus()
+      scriptInputRef?.current?.focus()
+      return;
+    }
+
+    if (scriptTitle.trim().length == 0) {
+      scriptTitleInputRef?.current?.focus()
       return;
     }
 
@@ -383,7 +481,10 @@ export default function Home() {
 
       body:JSON.stringify({
         script : userScript,
-        voiceId : choosenVoice?.id
+        title : scriptTitle,
+        voiceId : choosenVoice?.name,
+        bgMusic : bgMusic,
+        bgClip: vidClip.id
       } as GenerationRequest)
     }).then(async fR => {
       try {
@@ -396,7 +497,6 @@ export default function Home() {
         setCurrentOrderId(jsonResponse.orderId);
         onValue(ref(db, jsonResponse.orderId), (snapshot) => {
           const val = snapshot.val()
-          
           switch(val) {
           case "PREP":
             break;
@@ -427,6 +527,12 @@ export default function Home() {
       setGenerating(false);
     })
   }
+
+  useEffect(() => {
+    if (!generating && previewVideUrl) {
+      congratsRef.current?.play();
+    }
+  }, [generating])
 
   useEffect(() => {
     if (!voiceIdModelVisibility) {
@@ -488,167 +594,121 @@ export default function Home() {
     }
   }, [redditVisibility]) // effect-redditVisibility
 
-  const width = Dimensions.get('window').width
+  const { width, height} = Dimensions.get('window')
 
   return loading ? <>
     <View style={{justifyContent : 'center', alignItems : 'center', flex:1}}>
-      <ActivityIndicator size={500} color={Colors.secondary} style={{width:150, height:150}}>
-      </ActivityIndicator>
+      {/* <ActivityIndicator size={500} color={Colors.secondary} style={{width:150, height:150}}>
+      </ActivityIndicator> */}
+      <LoadingComponent />
     </View>
   </> : connectionErr ? <>
     <NoInternetView refreshCallback={() => { setConnectionErr(false); setLoading(true); loadPage() }}/>
   </> : <>
     <View style={[Theme.body]}>
-      <View style={{backgroundColor : Colors.secondary, padding : 15, paddingTop:20}}>
-        <SafeAreaView style={{flexDirection:'row', gap:5, justifyContent:'space-between', alignItems:'center'}}>
-          <Text style={[styles.headerText, {fontSize:15, marginTop:5, fontWeight:'800'}]}>👋 {userProfile.name}</Text>
+      <View style={{backgroundColor : Colors.onSurface, padding : 15, paddingTop:20, justifyContent:'center', alignItems:'center'}}>
+        <SafeAreaView style={{flexDirection:'row', gap:5, justifyContent:'space-between', alignItems:'center', width:'100%'}}>
+          <Text style={[styles.headerText, {fontSize:15, marginTop:0, fontWeight:'800'}]}>👋  {userProfile.name}</Text>
           <TouchableOpacity onPress={() => viewTokens()}>
             <View style={{flexDirection:'row', gap:5, justifyContent:'center', alignItems:'center',
-              padding:5,borderColor:Colors.primary, borderWidth:2, borderRadius:15
+              padding:5,borderColor:Colors.primary, borderWidth:2, borderRadius:15, marginTop:0
             }}>
-              <Image source={require('../../assets/images/token.png')} 
-                style={{width:15, height:15, tintColor:'white', resizeMode:'contain'}}/>
+              {/* <Image source={require('../../assets/images/token.png')} 
+                style={{width:15, height:15, tintColor:'white', resizeMode:'contain'}}/> */}
+              <Ionicons name="wallet" color={Colors.tokens} size={15} />
               <Text style={[styles.headerText, {fontWeight:'800', color:Colors.tokens}]}>{userProfile.tokens?.toFixed(1)}</Text>
-              <Text style={{fontFamily:'montserrat', color:Colors.primary, fontWeight:'600'}}>Tokens</Text>
+              {/* <Text style={{fontFamily:'montserrat', color:Colors.primary, fontWeight:'600'}}>Tokens</Text> */}
             </View>
           </TouchableOpacity>
         </SafeAreaView>
       </View>
-      <ScrollView style={{flex:1}}>
-        <PagerView initialPage={0} style={{height:120, padding:0}} ref={pagerRef}>
-          {pagerViewElements.map(e => {
-            return <View style={[styles.pagerViewElement]} key={e.title}>
-              <Text style={[styles.pvTitle]}> {e.title} </Text>
-              <Text style={[styles.pvSub]}> {e.subtitle} </Text>
-            </View>
-          })}
-        </PagerView>
+      <ScrollView style={{flex:1, paddingTop:10}}>
         <View style={{flexDirection:'row', marginHorizontal:15, marginBottom:10, justifyContent:'space-between'}}>
-          <Text style={{color: Colors.primary, fontFamily:'montserrat'}}>
-            <Text style={{color: Colors.tokens}}>{((userProfile.tokens??0) * (tokensPer100 ?? 0)).toFixed(1)}</Text> characters left
+          <Text style={{color: Colors.primary, fontFamily:'montserrat', fontWeight:'500'}}>
+            <Text style={{color: Colors.tokens, fontWeight:'700'}}>{((userProfile.tokens??0) * (tokensPer100 ?? 0)).toFixed(1)}</Text> characters left
           </Text>
-          <TouchableOpacity style={{flexDirection:'row', gap:3, alignItems:'center'}} onPress={() => setUserScript('')}>
+          <TouchableOpacity style={{flexDirection:'row', gap:3, alignItems:'center'}} onPress={() => {setUserScript(''); setScriptTitle('');}}>
             <Text style={{fontFamily:'montserrat', color:Colors.primary}}>Clear</Text>
             <Ionicons name="clipboard" style={{color:Colors.primary, transform : [{translateY:1}]}} />
           </TouchableOpacity>
         </View>
-        <TextInput maxLength={maxCharacters} style={[styles.input]} cursorColor={Colors.surface}  
-          multiline={true} placeholder="Paste your script here ..." selectionColor={Colors.surface}
+
+        <TextInput maxLength={maxCharacters} style={[Theme.input, {height:50}]} cursorColor={Colors.primary}  
+          multiline={false} placeholder="Title here ..." selectionColor={Colors.primary}
+          onChangeText={(newTex) => setScriptTitle(newTex)} value={scriptTitle} ref={scriptTitleInputRef}
+          />
+
+        <TextInput maxLength={maxCharacters} style={[Theme.input]} cursorColor={Colors.primary}  
+          multiline={true} placeholder="Paste your script here ..." selectionColor={Colors.primary}
           onChangeText={(newTex) => handleInputChange(newTex)} value={userScript} ref={scriptInputRef}
           />
-        <Text>{previewVideUrl}</Text>
-        <View style={{flexDirection:'row', justifyContent:'space-between'}}>
+
+        <View style={{flexDirection:'row', justifyContent:'space-between', marginTop:0, marginBottom:3}}>
           <Text style={{color: calculatedLength >= maxCharacters ? 'red' : 'white', fontFamily:'montserrat', marginHorizontal:15, fontWeight:'600'}}>
-            {calculatedLength}/{maxCharacters}
+            {userScript.length}/{maxCharacters}
           </Text>
           <Text style={{color: (calculatedLength / (tokensPer100??1)) > (userProfile.tokens ?? 0) ? 'red' : Colors.tokens, fontFamily:'montserrat', marginHorizontal:15, fontWeight:'600'}}>
-            {calculatedLength / (tokensPer100??1)} Tokens
+            {(userScript.length / (tokensPer100??1)).toFixed(2)} Tokens
           </Text>
         </View>
 
         {previewVideUrl != null ? <>
-        <View style={{justifyContent:'center', alignItems:'center', marginVertical:15}}>
-          {/* <Video source={{uri : previewVideUrl!, headers : {
-            'Authorization' : `Bearer ${jwtToken}`
-          }}} useNativeControls style={{width:width*.8, height:width*1.42, borderRadius:20}} volume={1.0}  isMuted={false}
-          onLoad={() => alert('Loaded')} onError={(e) => alert('Failed to load media '.concat(e))} PosterComponent={() => {
-            return <ActivityIndicator />
-          }} /> */}
-          <VideoPreview 
-            url={previewVideUrl}
-            orderId={currentOrderId??''}
-            width={Dimensions.get("window").width}
-            token={jwtToken??''}
-          />
-        </View>
-        </> : <>
-        </>}
+        <HomeButton text="View result" onPress={() => router.navigate( {
+            pathname : '/home/view_video',
+            params : {
+              orderId : currentOrderId,
+              jwtToken : jwtToken
+            }
+          })  } icon="play-circle" />
+        </> : generating ? <>
+            <GenVideoComponent isVideo={true} />
+        </> : <></>}
+
+        <ChoicesButton onPress={() => setVoiceIdModelVisibility(true)} currentOption={choosenVoice?.name ?? ""} text="Choose Voice" icon="mic" />
+        <ChoicesButton onPress={() => setBgMusicModalVisibility(true)} currentOption={bgMusic} text="Background Music" icon="musical-note" />
+        <ChoicesButton onPress={() => setVidClipsModalVisibility(true)} currentOption={vidClip.name} text="Background Video" icon="film" />
+        <HomeButton text="Use reddit URL"   icon="logo-reddit" onPress={() => {setRedditVisibility(true)}} animationRef={redditButtonRef} />
+        {/* <HomeButton text="Choose Background Music"   icon="musical-note" onPress={() => {setRedditVisibility(true)}} animationRef={redditButtonRef} /> */}
+        <HomeButton text="Generate script"  icon="sparkles" onPress={() => { router.navigate(
+          { pathname :'/home/generate_script', params : {
+            jwtToken : jwtToken,
+            name : userProfile?.name,
+            tokens : userProfile?.tokens,
+            email : userProfile?.email,
+            tokensPerSg : tokensPerScriptGen,
+            tokensPerAd : tokensPerAd
+          } }
+        );  }} animationRef={genScriptRef} />
+        <HomeButton text="Previous generations" icon="videocam" onPress={() => { router.navigate({pathname:'/home/previous_generations', params:{
+            username : userProfile.name,
+            jwtToken : jwtToken,
+            allGens : userProfile.gens
+          }}) }} animationRef={prevGensRef} />
 
         
-        <Animated.View style={{transform : [{ scale: redditButtonRef }]}}>
-          <TouchableOpacity onPress={() => setRedditVisibility(true)}>
-            <View style={{backgroundColor:Colors.secondary, borderRadius:15, padding:15, alignItems:'center', justifyContent:'space-between',
-              marginHorizontal:15, marginVertical:5, flexDirection:'row'}}>
-              <View style={{flexDirection:'row', gap:5}}>
-                <Text style={{fontFamily:'montserrat', color:Colors.primary, fontWeight:'600'}}>
-                  Use reddit URL
-                </Text>
-                <Ionicons name="logo-reddit" size={18} color={Colors.primary} style={{
-                  transform : [{translateY:1}]
-                }}/>
-              </View>
-              <Ionicons name="chevron-forward" style={{color : Colors.primary}} size={15}/>
-            </View>
-          </TouchableOpacity>
-        </Animated.View>
-
-        <Animated.View style={{transform : [{ scale: prevGensRef }]}}>
-          <TouchableOpacity onPress={() => router.navigate({pathname:'/home/previous_generations', params:{
-            username : userProfile.name,
-            jwtToken : jwtToken
-          }})}>
-            <View style={{backgroundColor:Colors.secondary, borderRadius:15, padding:15, alignItems:'center', justifyContent:'space-between',
-              marginHorizontal:15, marginVertical:5, flexDirection:'row'}}>
-              <View style={{flexDirection:'row', gap:5}}>
-                <Text style={{fontFamily:'montserrat', color:Colors.primary, fontWeight:'600'}}>
-                  Previous generations
-                </Text>
-                <Ionicons name="videocam-outline" size={18} color={Colors.primary} style={{
-                  transform : [{translateY:2}]
-                }}/>
-              </View>
-              <Ionicons name="chevron-forward" style={{color : Colors.primary}} size={15}/>
-            </View>
-          </TouchableOpacity>
-        </Animated.View>
-
-        <Animated.View style={{transform : [{scale : chooseVoiceRef}]}}>
-          <TouchableOpacity onPress={() => setVoiceIdModelVisibility(true)}>
-            <View style={{backgroundColor:Colors.secondary, borderRadius:15, padding:5, alignItems:'center', justifyContent:'space-between',
-              marginHorizontal:15, marginVertical:5, flexDirection:'row', paddingHorizontal:15}}>
-              <Text style={{fontFamily:'montserrat', color:Colors.primary, fontWeight:'600'}}>Choose AI Voice 🎤 </Text>
-              <View style={{flex:1, borderRadius:15, backgroundColor:Colors.primary, paddingVertical:5, marginVertical:5, height:'80%',
-                alignItems:'center', marginHorizontal:7
-              }}>
-                <Text style={{fontFamily:'montserrat', fontWeight:'600'}}>{choosenVoice?.name}</Text>
-              </View>
-              <Ionicons name="chevron-forward" style={{color : Colors.primary}} size={15}/>
-            </View>
-          </TouchableOpacity>
-        </Animated.View>
-
-
         {generating ? <View style={{flexDirection:'column', gap:10}}>
           <View style={{backgroundColor:Colors.surface, borderRadius:15, padding:15, alignItems:'center', justifyContent:'center',
             marginHorizontal:15, marginVertical:5, flexDirection:'row', paddingHorizontal:15, gap:15, borderColor:Colors.secondary,
             borderWidth:2}}>
               <Text style={{fontFamily:'montserrat', color:Colors.secondary, fontSize:18, fontWeight:'600'}}>Generating ....</Text>
-              <ActivityIndicator color={Colors.secondary}/>
+              <LoadingComponent small={true}/>
           </View>
         </View>
          :
         <Animated.View style={{transform : [{scale : generateButtonRef}]}}>
           <TouchableOpacity onPress={() => handleGenerate()}>
             <View style={{
-              backgroundColor:Colors.secondary, borderRadius:15, padding:15, alignItems:'center', justifyContent:'center',
+              backgroundColor:Colors.secondary, height:45, borderRadius:7, padding:10, alignItems:'center', justifyContent:'center',
               marginHorizontal:15, marginVertical:5, flexDirection:'row', paddingHorizontal:15, gap:15}}>
-              <Text style={{fontFamily:'montserrat', color:Colors.primary, fontSize:18, fontWeight:'600'}}>Generate</Text>
+              <Text style={{fontFamily:'montserrat', color:Colors.primary, fontSize:15, fontWeight:'600'}}>Generate</Text>
               <Ionicons name="star" size={18} color={Colors.primary} />
-              {/* <Ionicons name="chevron-forward" style={{color : Colors.primary}} size={15}/> */}
             </View>
           </TouchableOpacity>
         </Animated.View> }
 
-        <Animated.View style={{transform : [{scale : generateButtonRef}]}}>
-          <TouchableOpacity onPress={() => { router.replace('/login') }}>
-            <View style={{backgroundColor:Colors.secondary, borderRadius:15, padding:15, alignItems:'center', justifyContent:'center',
-              marginHorizontal:15, marginVertical:5, flexDirection:'row', paddingHorizontal:15, gap:15}}>
-              <Text style={{fontFamily:'montserrat', color:Colors.primary, fontSize:18, fontWeight:'600'}}>Generate</Text>
-              <Ionicons name="star" size={18} color={Colors.primary} />
-              {/* <Ionicons name="chevron-forward" style={{color : Colors.primary}} size={15}/> */}
-            </View>
-          </TouchableOpacity>
-        </Animated.View>
+        <HomeButton text="Signout" icon="exit" onPress={() => { router.replace('/login') }} />
+        <HomeButton text="Signout" icon="exit" onPress={() => { congratsRef.current?.play() }} />
+        <SafeAreaView/>
       </ScrollView>
 
 
@@ -659,8 +719,11 @@ export default function Home() {
         <View style={{backgroundColor:Colors.surface, borderRadius:15, padding:15, margin:0, height:'auto'}}>
           <ScrollView style={{}}>
             <View style={{flex:1, marginTop:5, gap:10}}>
-              <Text style={{fontFamily:'montserrat', fontSize:15, color:Colors.primary}}>
-                Paste Reddit URL here ...
+              <Text style={{fontFamily:'montserrat', fontSize:15, color:Colors.primary, fontWeight:'700'}}>
+                Paste Reddit link here ...
+              </Text>  
+              <Text style={{fontFamily:'montserrat', color:Colors.primaryShade, fontWeight:'700'}}>
+                * it's recommended to copy the text from reddit, rather than using the link
               </Text>  
               <TextInput
                 style={{borderColor:Colors.primary, borderWidth:1, borderRadius:10, padding:10, marginRight:5, 
@@ -676,14 +739,15 @@ export default function Home() {
                   { gettingUrlContent ? 
                   <>
                   <View style={{justifyContent:'center', alignItems:'center', flexDirection:'row', gap:5}}>
-                    <Text style={{fontFamily:'montserrat', color:Colors.primary, textAlign:'center'}}>
+                    <Text style={{fontFamily:'montserrat', color:Colors.primary, textAlign:'center', fontWeight:'800'}}>
                       Getting the script ...
                     </Text>
-                    <ActivityIndicator />
+                    {/* <ActivityIndicator /> */}
+                    <LoadingComponent/>
                   </View>
                   </>
                   : 
-                  <Text style={{fontFamily:'montserrat', color:Colors.primary, textAlign:'center'}}>
+                  <Text style={{fontFamily:'montserrat', color:Colors.primary, textAlign:'center', fontWeight:'800'}}>
                     Search for script
                   </Text> }
                 </View>
@@ -698,7 +762,7 @@ export default function Home() {
         </View>
       </Modal>
 
-      {/**
+      {/*
        * Here is the modal that will appear when the user wants to change the voice
        */}
       <Modal isVisible={voiceIdModelVisibility} style={{flex:1}}>
@@ -706,13 +770,13 @@ export default function Home() {
           <ScrollView style={{}}>
             <View style={{flex:1, marginTop:25}}>
               {voices?.map(voicePair => {
-                return  <View style={{flexDirection:'row', margin:3, padding:7, justifyContent:'flex-start'}} key={voicePair.id}>
-                  <Text style={{fontFamily:'montserrat', color: Colors.primary, fontSize:20, width:'30%'}}>{voicePair.name}</Text>
-                  <TouchableOpacity onPress={() => { playVoiceSample(voicePair.name) }} style={{marginRight:0}}>
-                    <Ionicons name="play" color={Colors.primary} size={23}/>
-                  </TouchableOpacity>
+                return <View style={{flexDirection:'row', margin:3, padding:7, justifyContent:'flex-start'}} key={voicePair.id}>
+                  <Text style={{fontFamily:'montserrat', color: Colors.primary, width:'20%'}}>{voicePair.name}</Text>
                   <View style={{flex:1}} />
-                  <TouchableOpacity onPress={() => { setChoosenVoice(voicePair);setVoiceIdModelVisibility(false) }} style={{paddingLeft:10}}>
+                  <TouchableOpacity onPress={() => { playVoiceSample(voicePair.name) }} style={{marginRight:10}}>
+                    <Ionicons name="play" color={Colors.primary} size={20}/>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { setChoosenVoice(voicePair); setVoiceIdModelVisibility(false); }} style={{paddingLeft:10}}>
                     <Ionicons name={choosenVoice?.id == voicePair.id ? 'checkbox' : 'checkbox-outline'} 
                       color={choosenVoice?.id == voicePair.id ? 'green' : Colors.secondary} size={23}/>
                   </TouchableOpacity>
@@ -720,7 +784,7 @@ export default function Home() {
               })}
             </View>
           </ScrollView>
-          <View style={{position:'absolute', transform:[{translateX:-8}, {translateY:8}], alignSelf:'flex-end'}}>
+          <View style={{position:'absolute', transform:[ {translateX:-8}, {translateY:8} ], alignSelf:'flex-end'}}>
             <TouchableOpacity onPress={() => setVoiceIdModelVisibility(false)}>
               <Ionicons name="close-circle" size={30} color={Colors.primary} />
             </TouchableOpacity>
@@ -728,45 +792,84 @@ export default function Home() {
         </View>
       </Modal>
 
-      {/** 
-       * Here is the modal sheet that will appear when the user hits the tokens button
-       */}
 
-      <Modal isVisible={tokensModalVisibile} style={{flex:1}}>
-        <View style={{backgroundColor : Colors.surface, borderRadius:15, padding:15, margin:0, height:'50%'}}>
+      {/**
+       * Background Music options modal
+       */}
+      <Modal isVisible={bgMusicModalVisibility} style={{flex:1}}>
+        <View style={{backgroundColor:Colors.surface, borderRadius:15, padding:15, margin:0, height:'35%'}}>
+          <ScrollView style={{}}>
+            <View style={{flex:1, marginTop:25}}>
+              {serverValues?.bgMusic?.map((name, index) => {
+                return  <View style={{flexDirection:'row', margin:3, padding:7, justifyContent:'flex-start'}} key={index}>
+                  <Text style={{fontFamily:'montserrat', color: Colors.primary}}>{name}</Text>
+                  <View style={{flex:1}} />
+                  <TouchableOpacity onPress={() => { playBgMusicSample(name) }} style={{marginRight:10}}>
+                    <Ionicons name="play" color={Colors.primary} size={20}/>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { setBgMusic(name);setBgMusicModalVisibility(false) }} style={{paddingLeft:10}}>
+                    <Ionicons name={bgMusic! == name ? 'checkbox' : 'checkbox-outline'} 
+                      color={bgMusic == name ? 'green' : Colors.secondary} size={23}/>
+                  </TouchableOpacity>
+                </View>
+              })}
+            </View>
+          </ScrollView>
           <View style={{position:'absolute', transform:[{translateX:-8}, {translateY:8}], alignSelf:'flex-end'}}>
-            <TouchableOpacity onPress={() => setTokensModalVisibility(false)}>
+            <TouchableOpacity onPress={() => setBgMusicModalVisibility(false)}>
               <Ionicons name="close-circle" size={30} color={Colors.primary} />
             </TouchableOpacity>
           </View>
-          <View style={{flex:1, justifyContent:'space-around', alignItems:'center'}}>
-            <View style={{alignItems:'center', flexDirection:'row', gap:10}}>
-              <Text style={{fontFamily:'montserrat', fontSize:20, color: Colors.primary, textAlign:'center', fontWeight:'800'}}>
-                You have <Text style={{color:Colors.tokens}}>{userProfile.tokens?.toFixed(0)}</Text> Tokens Left!
-              </Text>
-            </View>
-            <View style={{flexWrap:'wrap', flexDirection:'row', gap:5}}>
-              <Text style={{fontFamily:'montserrat', fontSize:15, color: Colors.primaryShade, textAlign:'center', fontWeight:'600'}}>
-                You can either buy tokens, or watch ad to get <Text style={{color: Colors.tokens}}>{tokensPerAd}</Text> tokens
-              </Text>
-            </View>
-          </View>
-          <Animated.View style={{transform : [{scale:modalTokensRef}]}}>
-            <TouchableOpacity onPress={() => handleBuyTokens()}>
-              <View style={[Theme.button]}>
-                <Text style={{fontFamily:'montserrat', color:Colors.surface, fontSize:15, fontWeight:'800'}}>Buy Tokens now!</Text>
-              </View>
-            </TouchableOpacity>
-          </Animated.View>
-          <Animated.View style={{transform : [{scale:modalTokensRef}]}}>
-            <TouchableOpacity onPress={() => handleWatchAd()}>
-              <View style={[Theme.button, {marginTop:0}]}>
-                <Text style={{fontFamily:'montserrat', color:Colors.surface, fontSize:15, fontWeight:'800'}}>Watch Ad to get <Text style={{color: Colors.secondary}}>{tokensPerAd}</Text> tokens!</Text>
-              </View>
-            </TouchableOpacity>
-          </Animated.View>
         </View>
       </Modal>
-    </View>
+
+      {/**
+       * Background Video Clip options modal
+       */}
+      <Modal isVisible={vidClipsModalVisibility} style={{flex:1}}>
+        <View style={{backgroundColor:Colors.surface, borderRadius:15, padding:15, margin:0, height:'35%'}}>
+          <ScrollView style={{}}>
+            <View style={{flex:1, marginTop:25}}>
+              {serverValues?.vidClips?.map((pair, index) => {
+                return  <View style={{flexDirection:'row', margin:3, padding:7, justifyContent:'flex-start'}} key={index}>
+                  <Text style={{fontFamily:'montserrat', color: Colors.primary}}>{pair.name}</Text>
+                  <View style={{flex:1}} />
+                  <TouchableOpacity onPress={() => { }} style={{marginRight:10, flexDirection:'row', gap:5}}>
+                    <Ionicons name="image-outline" color={Colors.primary} size={20}/>
+                    <Ionicons name="play" color={Colors.primary} size={20}/>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { setVidClip(pair);setVidClipsModalVisibility(false) }} style={{paddingLeft:10}}>
+                    <Ionicons name={vidClip.name! == pair.name ? 'checkbox' : 'checkbox-outline'} 
+                      color={vidClip.name == pair.name ? 'green' : Colors.secondary} size={23}/>
+                  </TouchableOpacity>
+                </View>
+              })}
+            </View>
+          </ScrollView>
+          <View style={{position:'absolute', transform:[{translateX:-8}, {translateY:8}], alignSelf:'flex-end'}}>
+            <TouchableOpacity onPress={() => setVidClipsModalVisibility(false)}>
+              <Ionicons name="close-circle" size={30} color={Colors.primary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 
+        * Ignore pointer events for the overlay view and its children 
+        */}
+      <View
+        style={{ width: width, height: height, position: 'absolute', bottom: 0, pointerEvents: 'none' }}
+        pointerEvents="none">
+        <LottieView
+          source={require('../../assets/lottie/congrats.json')}
+          ref={congratsRef}
+          autoPlay={false}
+          loop={false}
+          style={{ width: width, height: height, pointerEvents: 'none'  }} />
+      </View>
+
+      <BuyTokensComponent onClosed={() => { setTokensModalVisibility(false) }} visible={tokensModalVisibile} tokens={userProfile.tokens??0}
+        tokensPerAd={tokensPerAd} onBuyPageOpened={() => { setTokensModalVisibility(false) }} />
+   </View>
   </>
 }

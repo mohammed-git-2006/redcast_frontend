@@ -26,19 +26,16 @@ export function saveUserToStorage(userProfile : UserProfile) {
 export async function loadUserFromServer(jwtToken:string) : Promise<UserProfile|'connerr'|'tokenerr'> {
   try {
     const response = await fetch(`${SERVER_URL}/user/info`, {
-      method: 'POST',
+      method: 'GET',
       headers : {
         'Authorization' : 'Bearer '.concat(jwtToken) 
       }
     });
 
-    const parsedResult = await response.json()
-    if (!parsedResult.status) {
-      return 'tokenerr'
-    }
-
-    return parsedResult as UserProfile
+    const parsedResult = await response.json() as UserProfile
+    return parsedResult
   } catch (err) {
+    console.log(`loadUserFromServer error => ${err}`)
     return 'connerr';
   }
 }

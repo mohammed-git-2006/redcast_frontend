@@ -44,11 +44,13 @@ const Colors_ = {
 };
 
 const Colors = {
-  surface : '#0C1844',
-  primary : '#F3E2D4',
-  secondary : '#C80036',
-  inputSurface : '#F3E2D4',
-  tokens : '#ffd700',
+  // surface : '#0C1844',
+  surface : '#171717',
+  onSurface : '#080808ff',
+  primary : '#ffffff',
+  secondary : '#940028ff',
+  inputSurface : '#0D2D4B',
+  tokens : '#efd43fff',
   primaryShade : '#909090ff',
   tokensDarker : '#CCAD00',
 }
@@ -114,9 +116,27 @@ const Theme = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.75,
     shadowRadius: 4,
-
-    // Android Shadow
     elevation: 5,
+  },
+
+  input : {
+    backgroundColor:Colors.onSurface,
+    borderRadius:20,
+    padding:10,
+    marginHorizontal:10,
+    marginBottom:10,
+    height:200,
+    borderColor:Colors.onSurface,
+    borderWidth:0.5,
+    fontFamily:'montserrat',
+    fontWeight:'600',
+    color:Colors.primary,
+    fontSize:14,
+    shadowColor:'#121212',
+    shadowRadius:5,
+    shadowOpacity:1.0,
+    shadowOffset:{width:0, height:0},
+    elevation:5,
   }
 })
 
