@@ -6,3 +6,4 @@ This app is built in React Native in Expo framework, the backend used is built i
 ## Screenshots inside the app
 <img src="docs/1.png" width="300" /> <img src="docs/2.png" width="300" /> <img src="docs/3.png" width="300" /> <img src="docs/4.png" width="300" />  <img src="docs/5.png" width="300" /> <img src="docs/6.png" width="300" /> <img src="docs/7.png" width="300" />
 ## Video Record of animation inside the app
+[▶ Watch Demo Video](https://github.com/mohammed-git-2006/redcast_frontend/raw/refs/heads/master/docs/1.mp4)
